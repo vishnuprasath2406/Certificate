@@ -122,6 +122,7 @@ export const CertificateSection: React.FC = () => {
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
   const [isDownloadingPng, setIsDownloadingPng] = useState<boolean>(false);
+  const [hasDownloaded, setHasDownloaded] = useState<boolean>(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const templateImgRef = useRef<HTMLImageElement | null>(null);
@@ -227,6 +228,7 @@ export const CertificateSection: React.FC = () => {
   const handleSelectParticipant = (person: Person) => {
     setChosenPerson(person);
     setSearchQuery(person.name);
+    setHasDownloaded(false);
 
     try {
       confetti({
@@ -243,6 +245,7 @@ export const CertificateSection: React.FC = () => {
   const handleReset = () => {
     setChosenPerson(null);
     setSearchQuery('');
+    setHasDownloaded(false);
   };
 
   const certificateFileName = chosenPerson
@@ -259,6 +262,7 @@ export const CertificateSection: React.FC = () => {
       link.download = `${certificateFileName}.png`;
       link.href = dataUrl;
       link.click();
+      setHasDownloaded(true);
     } catch (err) {
       console.error('Download PNG failed', err);
     } finally {
@@ -279,6 +283,7 @@ export const CertificateSection: React.FC = () => {
       const imgData = canvas.toDataURL('image/jpeg', 0.96);
       pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
       pdf.save(`${certificateFileName}.pdf`);
+      setHasDownloaded(true);
     } catch (err) {
       console.error('Download PDF failed', err);
     } finally {
@@ -627,6 +632,19 @@ export const CertificateSection: React.FC = () => {
                 <span>{isDownloadingPdf ? 'Generating PDF…' : 'Download PDF Certificate'}</span>
               </button>
             </div>
+
+            {/* THANK-YOU NOTE (shown after a download) */}
+            {hasDownloaded && (
+              <div
+                role="status"
+                className="animate-in fade-in duration-500 p-5 rounded-2xl bg-phoenix-orange/10 border border-phoenix-orange/40 text-center space-y-1"
+              >
+                <Award className="w-6 h-6 text-phoenix-gold mx-auto" />
+                <p className="text-base sm:text-lg font-extrabold text-white">
+                  Thank you for participating in PIXEL 3.0!
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
