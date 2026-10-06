@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #FFFFFF;
+    background-color: #050505;
+  }
+
+  /* Custom subtle dark scrollbar */
+  ::-webkit-scrollbar { width: 7px; }
+  ::-webkit-scrollbar-track { background: #0a0a0a; }
+  ::-webkit-scrollbar-thumb { background: #262626; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #FF6A00; }
+}
+
+/* Gradient Utilities */
+.phoenix-gradient-text {
+  background: linear-gradient(135deg, #FF6A00 0%, #E51B23 50%, #E0008A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.phoenix-gold-gradient-text {
+  background: linear-gradient(135deg, #FFC21A 0%, #FF6A00 50%, #E51B23 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.phoenix-gradient-btn {
+  background: linear-gradient(135deg, #FF6A00 0%, #E51B23 100%);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.phoenix-gradient-btn:hover {
+  background: linear-gradient(135deg, #E51B23 0%, #E0008A 100%);
+  box-shadow: 0 10px 25px -5px rgba(229, 27, 35, 0.45);
+  transform: translateY(-2px);
+}
+
+.phoenix-secondary-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.phoenix-secondary-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: #FF6A00;
+  transform: translateY(-2px);
+}
