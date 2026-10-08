@@ -314,7 +314,8 @@ export const CertificateSection: React.FC = () => {
 
         <p className="text-xs sm:text-sm text-white/70 max-w-xl mx-auto font-medium">
           Official Participation E-Certificate Portal · Department of Computer Science &amp;
-          Engineering · In Association with CSI Kanchipuram Chapter
+          Engineering · Department of Computer Science &amp; Design · In Association with CSI
+          Kanchipuram Chapter
         </p>
 
         <div className="flex items-center justify-center gap-4 text-[11px] sm:text-xs text-phoenix-gold font-semibold pt-1">
@@ -654,7 +655,10 @@ export const CertificateSection: React.FC = () => {
       {/* ── FOOTER CREDITS ── */}
       <div className="text-center mt-12 text-xs text-white/40 space-y-1">
         <p>PIXEL-3.O · National Level Technical Symposium · 14 October 2026</p>
-        <p>Department of Computer Science and Engineering · Adhiparasakthi Engineering College</p>
+        <p>
+          Department of Computer Science and Engineering &amp; Department of Computer Science and
+          Design · Adhiparasakthi Engineering College
+        </p>
       </div>
     </div>
   );
