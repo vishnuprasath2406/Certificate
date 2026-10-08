@@ -16,22 +16,22 @@ import {
 /* Categories & Events matching PIXEL-3.O */
 export const CATEGORIES: Record<string, string[]> = {
   Technical: ['PaperQuest', 'AI FilmForge'],
-  'Non-Technical': ['Checkmate', 'Mine Relay'],
+  'Non-Technical': ['Checkmate', 'Mime Relay'],
 };
 
 const TEMPLATE_PATHS = ['/Participation.png', '/participation.png', '/Certificate-template.png'];
 
-/* Coordinates on the 1536 x 1024 certificate template (y = text baseline,
-   sitting just above each blue line):
-   - Name line   ("Mr./Ms."):         x ≈ 459–1509, center cx = 984, line y ≈ 648
-   - College line ("of"):             x ≈ 118–1511, center cx = 815, line y ≈ 720
-   - Event line  ("participated in"): x ≈ 470–922,  center cx = 696, line y ≈ 789
+/* Coordinates measured pixel-by-pixel on the 1534 x 1025 certificate template
+   (y = text baseline, sitting just above each blue underline):
+   - Name line   ("Mr./Ms."):         x 445–1497, center cx = 971, line y = 642
+   - College line ("of"):             x 115–1497, center cx = 806, line y = 717
+   - Event line  ("participated in"): x 468–925,  center cx = 697, line y = 792
    To nudge a field: increase y to move it DOWN, decrease to move it UP;
    increase cx to move it RIGHT, decrease to move it LEFT. */
 const FIELDS = {
-  name: { cx: 988, y: 641, w: 1000, size: 42, style: 'italic 700' },
-  college: { cx: 822, y: 715, w: 1360, size: 34, style: '700' },
-  event: { cx: 698, y: 785, w: 430, size: 34, style: '700' },
+  name: { cx: 971, y: 634, w: 1020, size: 42, style: 'italic 700' },
+  college: { cx: 806, y: 709, w: 1350, size: 34, style: '700' },
+  event: { cx: 697, y: 784, w: 430, size: 34, style: '700' },
 };
 
 const INK_COLOR = '#0a1e6e';
