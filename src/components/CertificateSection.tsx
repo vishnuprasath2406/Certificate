@@ -11,6 +11,7 @@ import {
   Building,
   Calendar,
   Check,
+  Share2,
 } from 'lucide-react';
 
 /* Categories & Events matching PIXEL-3.O */
@@ -49,6 +50,7 @@ export interface Person {
   college: string;
   event: string;
   category?: string;
+  team?: string;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -61,7 +63,7 @@ const tidyName = (s: string) => {
   return s;
 };
 
-function parseCSV(text: string): Person[] {
+export function parseCSV(text: string): Person[] {
   if (!text || !text.trim()) return [];
   const rows = text
     .replace(/^\uFEFF/, '')
@@ -88,6 +90,7 @@ function parseCSV(text: string): Person[] {
   const nameIdx = headers.indexOf('name');
   const collegeIdx = headers.indexOf('college');
   const eventIdx = headers.indexOf('event');
+  const teamIdx = headers.indexOf('team');
   if (nameIdx < 0 || eventIdx < 0) return [];
 
   return rows
@@ -97,7 +100,44 @@ function parseCSV(text: string): Person[] {
       name: r[nameIdx],
       college: collegeIdx >= 0 && r[collegeIdx] ? r[collegeIdx] : DEFAULT_COLLEGE,
       event: r[eventIdx],
+      team: teamIdx >= 0 ? r[teamIdx] || '' : '',
     }));
+}
+
+/* Phoenix touch: embers and feathers rising from the bottom of the screen */
+function phoenixBurst() {
+  try {
+    const feather = confetti.shapeFromPath({
+      path: 'M10 0 C18 6 18 16 10 30 C2 16 2 6 10 0 Z',
+    });
+    const colors = ['#FF6A00', '#E51B23', '#FFC21A', '#E0008A'];
+    confetti({
+      particleCount: 70,
+      angle: 90,
+      spread: 100,
+      startVelocity: 55,
+      gravity: 0.7,
+      scalar: 1.4,
+      ticks: 260,
+      origin: { x: 0.5, y: 1 },
+      shapes: [feather, 'circle'],
+      colors,
+    });
+    confetti({
+      particleCount: 30,
+      angle: 90,
+      spread: 160,
+      startVelocity: 35,
+      gravity: 0.4,
+      scalar: 0.8,
+      ticks: 320,
+      origin: { x: 0.5, y: 0.9 },
+      shapes: ['circle'],
+      colors,
+    });
+  } catch {
+    // ignore
+  }
 }
 
 function loadTemplateImage(): Promise<HTMLImageElement | null> {
@@ -162,8 +202,12 @@ export const CertificateSection: React.FC = () => {
   const searchMatches = useMemo(() => {
     if (!selectedEvent || q.length < 2) return [];
     return participants
-      .filter((p) => norm(p.event) === norm(selectedEvent) && norm(p.name).includes(q))
-      .slice(0, 10);
+      .filter(
+        (p) =>
+          norm(p.event) === norm(selectedEvent) &&
+          (norm(p.name).includes(q) || norm(p.team || '').includes(q))
+      )
+      .slice(0, 12);
   }, [participants, selectedEvent, q]);
 
   // Render certificate on canvas with precise alignment
@@ -238,16 +282,7 @@ export const CertificateSection: React.FC = () => {
     setSearchQuery(person.name);
     setHasDownloaded(false);
 
-    try {
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.7 },
-        colors: ['#FF6A00', '#E51B23', '#FFC21A', '#E0008A'],
-      });
-    } catch {
-      // ignore
-    }
+    phoenixBurst();
   };
 
   const handleReset = () => {
@@ -260,6 +295,11 @@ export const CertificateSection: React.FC = () => {
     ? `${tidyName(chosenPerson.name)} - ${chosenPerson.event} - PIXEL3.O Certificate`
     : 'PIXEL-3.O-Certificate';
 
+  const markDownloaded = () => {
+    setHasDownloaded(true);
+    phoenixBurst();
+  };
+
   const handleDownloadPng = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -270,7 +310,7 @@ export const CertificateSection: React.FC = () => {
       link.download = `${certificateFileName}.png`;
       link.href = dataUrl;
       link.click();
-      setHasDownloaded(true);
+      markDownloaded();
     } catch (err) {
       console.error('Download PNG failed', err);
     } finally {
@@ -291,13 +331,26 @@ export const CertificateSection: React.FC = () => {
       const imgData = canvas.toDataURL('image/jpeg', 0.96);
       pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
       pdf.save(`${certificateFileName}.pdf`);
-      setHasDownloaded(true);
+      markDownloaded();
     } catch (err) {
       console.error('Download PDF failed', err);
     } finally {
       setIsDownloadingPdf(false);
     }
   };
+
+  const siteUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const shareMessage = chosenPerson
+    ? `I just collected my ${chosenPerson.event} certificate at PIXEL 3.0, Adhiparasakthi Engineering College! 🔥`
+    : '';
+  const canNativeShare = typeof navigator !== 'undefined' && 'share' in navigator;
+  const handleNativeShare = () => {
+    navigator
+      .share({ title: 'PIXEL 3.0 Certificate', text: shareMessage, url: siteUrl })
+      .catch(() => {});
+  };
+  const shareBtn =
+    'px-4 py-2 rounded-full text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 inline-flex items-center gap-1.5 transition-colors';
 
   const isTech = selectedCategory === 'Technical';
 
@@ -505,7 +558,7 @@ export const CertificateSection: React.FC = () => {
                     setSearchQuery(e.target.value);
                     setChosenPerson(null);
                   }}
-                  placeholder={`Start typing your name for ${selectedEvent}…`}
+                  placeholder="Type your name or team name…"
                   autoComplete="off"
                   disabled={loadStatus !== 'ready'}
                   className="w-full pl-12 pr-10 py-3.5 rounded-2xl border border-white/20 text-sm font-semibold text-white bg-white/[0.06] placeholder:text-white/40 focus:outline-none focus:border-phoenix-orange focus:ring-2 focus:ring-phoenix-orange/30 transition-all shadow-inner disabled:opacity-50"
@@ -541,6 +594,7 @@ export const CertificateSection: React.FC = () => {
                         <div className="text-xs text-white/60 flex items-center gap-1.5 mt-0.5">
                           <Building className="w-3 h-3 text-white/40 shrink-0" />
                           <span className="truncate max-w-[280px] sm:max-w-md">
+                            {person.team ? `Team ${person.team} · ` : ''}
                             {person.college || DEFAULT_COLLEGE}
                           </span>
                         </div>
@@ -605,17 +659,16 @@ export const CertificateSection: React.FC = () => {
 
             {/* Live Canvas Certificate Preview */}
             <div className="relative rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-black/50 p-2 sm:p-3">
-              <div className="relative w-full aspect-[1536/1024] bg-white rounded-xl overflow-hidden">
+              <div
+                className={`relative w-full aspect-[1536/1024] bg-white rounded-xl overflow-hidden transition-all duration-1000 ${
+                  isDrawing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+                }`}
+              >
                 <canvas
                   ref={canvasRef}
                   className="w-full h-full object-contain block"
                   style={{ imageRendering: 'crisp-edges' }}
                 />
-                {isDrawing && (
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center text-white text-xs font-bold">
-                    Rendering Certificate...
-                  </div>
-                )}
               </div>
             </div>
 
@@ -652,6 +705,29 @@ export const CertificateSection: React.FC = () => {
                 <p className="text-base sm:text-lg font-extrabold text-white">
                   Thank you for participating in PIXEL 3.0!
                 </p>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(`${shareMessage} ${siteUrl}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={shareBtn}
+                  >
+                    <Share2 className="w-3.5 h-3.5" /> WhatsApp
+                  </a>
+                  <a
+                    href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(siteUrl)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={shareBtn}
+                  >
+                    <Share2 className="w-3.5 h-3.5" /> LinkedIn
+                  </a>
+                  {canNativeShare && (
+                    <button type="button" onClick={handleNativeShare} className={shareBtn}>
+                      <Share2 className="w-3.5 h-3.5" /> More…
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
