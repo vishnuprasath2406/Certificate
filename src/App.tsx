@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { PhoenixHeroGraphic } from './components/PhoenixHeroGraphic';
 import { CertificateSection } from './components/CertificateSection';
-import { AdminPanel } from './components/Adminpanel';
 
 export default function App() {
   // Organizer page lives at  yoursite.vercel.app/#admin
