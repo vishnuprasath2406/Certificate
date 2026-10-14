@@ -37,7 +37,6 @@ const FIELDS = {
 
 const INK_COLOR = '#0a1e6e';
 const SERIF_FONT = '"Times New Roman", Times, "Liberation Serif", serif';
-const DEFAULT_COLLEGE = 'Adhiparasakthi Engineering College';
 
 export interface Person {
   name: string;
@@ -113,7 +112,7 @@ export const CertificateSection: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedEvent, setSelectedEvent] = useState<string>('');
   const [nameInput, setNameInput] = useState<string>('');
-  const [college, setCollege] = useState<string>(DEFAULT_COLLEGE);
+  const [college, setCollege] = useState<string>('');
   const [chosenPerson, setChosenPerson] = useState<Person | null>(null);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
@@ -184,7 +183,7 @@ export const CertificateSection: React.FC = () => {
     };
 
     drawField(FIELDS.name, tidyName(person.name));
-    drawField(FIELDS.college, person.college || DEFAULT_COLLEGE);
+    drawField(FIELDS.college, person.college);
     drawField(FIELDS.event, person.event);
 
     setIsDrawing(false);
@@ -197,13 +196,14 @@ export const CertificateSection: React.FC = () => {
     }
   }, [chosenPerson]);
 
-  const canGenerate = selectedEvent !== '' && nameInput.trim().length >= 2;
+  const canGenerate =
+    selectedEvent !== '' && nameInput.trim().length >= 2 && college.trim().length >= 2;
 
   const handleGenerate = () => {
     if (!canGenerate) return;
     setChosenPerson({
       name: nameInput.trim(),
-      college: college.trim() || DEFAULT_COLLEGE,
+      college: college.trim(),
       event: selectedEvent,
     });
     setHasDownloaded(false);
@@ -457,10 +457,10 @@ export const CertificateSection: React.FC = () => {
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-phoenix-gold text-black text-xs font-black">
                   3
                 </span>
-                ENTER YOUR NAME
+                ENTER YOUR DETAILS
               </h2>
               <p className="text-xs text-white/60 ml-8">
-                Type your name exactly as you want it printed on your {selectedEvent} certificate
+                Type your name and college exactly as you want them printed on your {selectedEvent} certificate
               </p>
             </div>
 
@@ -483,7 +483,7 @@ export const CertificateSection: React.FC = () => {
               />
 
               <label className="block text-[11px] font-semibold text-white/60">
-                College (change only if you are from another college)
+                College name
                 <input
                   type="text"
                   value={college}
@@ -493,6 +493,11 @@ export const CertificateSection: React.FC = () => {
                     setChosenPerson(null);
                     setHasDownloaded(false);
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleGenerate();
+                  }}
+                  placeholder="Your college name"
+                  autoComplete="off"
                   className="mt-1 w-full px-5 py-3 rounded-2xl border border-white/15 text-sm font-semibold text-white bg-white/[0.04] focus:outline-none focus:border-phoenix-orange transition-all"
                 />
               </label>
