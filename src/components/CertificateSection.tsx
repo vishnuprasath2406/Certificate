@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import confetti from 'canvas-confetti';
 import {
@@ -9,6 +9,9 @@ import {
   Calendar,
   Check,
   Share2,
+  Search,
+  Building,
+  AlertCircle,
 } from 'lucide-react';
 
 /* Categories & Events matching PIXEL-3.O */
@@ -51,6 +54,48 @@ const tidyName = (s: string) => {
   }
   return s;
 };
+
+/* Letters-only lowercase key, so "R. Karthikeyan", "r karthikeyan" and "R.KARTHIKEYAN" all match */
+const keyOf = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+
+function parseCSV(text: string): Person[] {
+  if (!text || !text.trim()) return [];
+  const rows = text
+    .replace(/^\uFEFF/, '')
+    .replace(/\r/g, '')
+    .split('\n')
+    .filter((r) => r.trim())
+    .map((r) => {
+      const out: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      for (const ch of r) {
+        if (ch === '"') inQuotes = !inQuotes;
+        else if (ch === ',' && !inQuotes) {
+          out.push(current.trim());
+          current = '';
+        } else current += ch;
+      }
+      out.push(current.trim());
+      return out;
+    });
+
+  if (!rows.length) return [];
+  const headers = rows[0].map((x) => x.toLowerCase());
+  const nameIdx = headers.indexOf('name');
+  const collegeIdx = headers.indexOf('college');
+  const eventIdx = headers.indexOf('event');
+  if (nameIdx < 0 || eventIdx < 0 || collegeIdx < 0) return [];
+
+  return rows
+    .slice(1)
+    .filter((r) => r[nameIdx] && r[eventIdx])
+    .map((r) => ({
+      name: r[nameIdx],
+      college: r[collegeIdx] || '',
+      event: r[eventIdx],
+    }));
+}
 
 /* Phoenix touch: embers and feathers rising from the bottom of the screen */
 function phoenixBurst() {
@@ -112,7 +157,8 @@ export const CertificateSection: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedEvent, setSelectedEvent] = useState<string>('');
   const [nameInput, setNameInput] = useState<string>('');
-  const [college, setCollege] = useState<string>('');
+  const [participants, setParticipants] = useState<Person[]>([]);
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [chosenPerson, setChosenPerson] = useState<Person | null>(null);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
@@ -122,8 +168,22 @@ export const CertificateSection: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const templateImgRef = useRef<HTMLImageElement | null>(null);
 
-  // Preload certificate template image
+  // Load participants.csv and preload the certificate template image
   useEffect(() => {
+    fetch('/participants.csv', { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error('participants.csv not found');
+        return res.text();
+      })
+      .then((txt) => {
+        setParticipants(parseCSV(txt));
+        setLoadStatus('ready');
+      })
+      .catch(() => {
+        setParticipants([]);
+        setLoadStatus('error');
+      });
+
     loadTemplateImage().then((img) => {
       templateImgRef.current = img;
     });
@@ -196,18 +256,31 @@ export const CertificateSection: React.FC = () => {
     }
   }, [chosenPerson]);
 
-  const canGenerate =
-    selectedEvent !== '' && nameInput.trim().length >= 2 && college.trim().length >= 2;
+  // Only people listed for the selected event can get a certificate
+  const qKey = keyOf(nameInput);
+  const eventPeople = useMemo(
+    () => participants.filter((p) => p.event.toLowerCase() === selectedEvent.toLowerCase()),
+    [participants, selectedEvent]
+  );
+  const searchMatches = useMemo(
+    () => (qKey.length < 2 ? [] : eventPeople.filter((p) => keyOf(p.name).includes(qKey)).slice(0, 12)),
+    [eventPeople, qKey]
+  );
+  const exactMatches = useMemo(
+    () => eventPeople.filter((p) => keyOf(p.name) === qKey),
+    [eventPeople, qKey]
+  );
+  const canGenerate = exactMatches.length === 1;
 
-  const handleGenerate = () => {
-    if (!canGenerate) return;
-    setChosenPerson({
-      name: nameInput.trim(),
-      college: college.trim(),
-      event: selectedEvent,
-    });
+  const handleSelectParticipant = (person: Person) => {
+    setNameInput(person.name);
+    setChosenPerson(person);
     setHasDownloaded(false);
     phoenixBurst();
+  };
+
+  const handleGenerate = () => {
+    if (canGenerate) handleSelectParticipant(exactMatches[0]);
   };
 
   const handleReset = () => {
@@ -449,7 +522,7 @@ export const CertificateSection: React.FC = () => {
           </div>
         )}
 
-        {/* STEP 3: ENTER NAME → GENERATE */}
+        {/* STEP 3: ENTER NAME (must be in the participant list) */}
         {selectedEvent && (
           <div className="animate-in fade-in duration-300">
             <div className="mb-3">
@@ -457,50 +530,85 @@ export const CertificateSection: React.FC = () => {
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-phoenix-gold text-black text-xs font-black">
                   3
                 </span>
-                ENTER YOUR DETAILS
+                ENTER YOUR NAME
               </h2>
               <p className="text-xs text-white/60 ml-8">
-                Type your name and college exactly as you want them printed on your {selectedEvent} certificate
+                Type your name as registered for {selectedEvent} to get your certificate
               </p>
             </div>
 
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={nameInput}
-                maxLength={60}
-                onChange={(e) => {
-                  setNameInput(e.target.value);
-                  setChosenPerson(null);
-                  setHasDownloaded(false);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleGenerate();
-                }}
-                placeholder="Your full name"
-                autoComplete="off"
-                className="w-full px-5 py-3.5 rounded-2xl border border-white/20 text-sm font-semibold text-white bg-white/[0.06] placeholder:text-white/40 focus:outline-none focus:border-phoenix-orange focus:ring-2 focus:ring-phoenix-orange/30 transition-all shadow-inner"
-              />
+            {loadStatus === 'error' && (
+              <div className="mb-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs sm:text-sm flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 shrink-0 text-red-400 mt-0.5" />
+                <div>
+                  The participant list could not be loaded. Please refresh the page or contact the
+                  organizers.
+                </div>
+              </div>
+            )}
 
-              <label className="block text-[11px] font-semibold text-white/60">
-                College name
+            <div className="relative space-y-3">
+              <div className="relative flex items-center">
+                <Search className="w-5 h-5 absolute left-4 text-white/40 pointer-events-none" />
                 <input
                   type="text"
-                  value={college}
-                  maxLength={80}
+                  value={nameInput}
+                  maxLength={60}
+                  disabled={loadStatus !== 'ready'}
                   onChange={(e) => {
-                    setCollege(e.target.value);
+                    setNameInput(e.target.value);
                     setChosenPerson(null);
                     setHasDownloaded(false);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleGenerate();
                   }}
-                  placeholder="Your college name"
+                  placeholder="Start typing your name…"
                   autoComplete="off"
-                  className="mt-1 w-full px-5 py-3 rounded-2xl border border-white/15 text-sm font-semibold text-white bg-white/[0.04] focus:outline-none focus:border-phoenix-orange transition-all"
+                  className="w-full pl-12 pr-5 py-3.5 rounded-2xl border border-white/20 text-sm font-semibold text-white bg-white/[0.06] placeholder:text-white/40 focus:outline-none focus:border-phoenix-orange focus:ring-2 focus:ring-phoenix-orange/30 transition-all shadow-inner disabled:opacity-50"
                 />
-              </label>
+              </div>
+
+              {/* Suggestions from the participant list */}
+              {!chosenPerson && searchMatches.length > 0 && (
+                <div className="p-2 bg-[#17171d] border border-white/20 rounded-2xl shadow-2xl max-h-72 overflow-y-auto space-y-1 z-30">
+                  <div className="px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase text-white/40 border-b border-white/10">
+                    Tap your name ({searchMatches.length} found)
+                  </div>
+                  {searchMatches.map((person, idx) => (
+                    <button
+                      key={`${person.name}-${person.college}-${idx}`}
+                      type="button"
+                      onClick={() => handleSelectParticipant(person)}
+                      className="w-full text-left p-3 rounded-xl hover:bg-white/10 border border-transparent hover:border-phoenix-orange/40 transition-all group cursor-pointer"
+                    >
+                      <div className="text-sm font-bold text-white group-hover:text-phoenix-orange transition-colors">
+                        {person.name}
+                      </div>
+                      <div className="text-xs text-white/60 flex items-center gap-1.5 mt-0.5">
+                        <Building className="w-3 h-3 text-white/40 shrink-0" />
+                        <span className="truncate">{person.college}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Not in the list */}
+              {!chosenPerson && loadStatus === 'ready' && qKey.length >= 3 && searchMatches.length === 0 && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs sm:text-sm flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
+                  <div className="space-y-1">
+                    <div className="font-bold">
+                      No record found for &quot;{nameInput}&quot; in {selectedEvent}
+                    </div>
+                    <div className="text-white/70 text-xs">
+                      Check the spelling and the event you selected. If you still can&apos;t find your
+                      name, contact the organizers.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <button
                 type="button"
