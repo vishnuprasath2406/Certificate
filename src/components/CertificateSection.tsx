@@ -1,14 +1,11 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import confetti from 'canvas-confetti';
 import {
   Download,
   CheckCircle2,
-  AlertCircle,
-  Search,
   RotateCcw,
   Award,
-  Building,
   Calendar,
   Check,
   Share2,
@@ -27,12 +24,9 @@ const TEMPLATE_PATHS = [
   '/certificate-template.png',
 ];
 
-/* Coordinates measured pixel-by-pixel on the 3456 x 2304 certificate template,
-   converted to a 1536 x 1024 design grid (the code scales to any 3:2 image).
-   y = text baseline, sitting just above each blue underline:
-   - Name line   ("Mr./Ms."):         center cx = 970, line y = 642
-   - College line ("of"):             center cx = 806, line y = 719
-   - Event line  ("participated in"): center cx = 677, line y = 795
+/* Coordinates measured on the 3456 x 2304 certificate template, converted to a
+   1536 x 1024 design grid (the code scales to any 3:2 image).
+   y = text baseline, sitting just above each blue underline.
    To nudge a field: increase y to move it DOWN, decrease to move it UP;
    increase cx to move it RIGHT, decrease to move it LEFT. */
 const FIELDS = {
@@ -49,11 +43,7 @@ export interface Person {
   name: string;
   college: string;
   event: string;
-  category?: string;
-  team?: string;
 }
-
-const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
 
 const tidyName = (s: string) => {
   if (!s) return '';
@@ -62,47 +52,6 @@ const tidyName = (s: string) => {
   }
   return s;
 };
-
-export function parseCSV(text: string): Person[] {
-  if (!text || !text.trim()) return [];
-  const rows = text
-    .replace(/^\uFEFF/, '')
-    .replace(/\r/g, '')
-    .split('\n')
-    .filter((r) => r.trim())
-    .map((r) => {
-      const out: string[] = [];
-      let current = '';
-      let inQuotes = false;
-      for (const ch of r) {
-        if (ch === '"') inQuotes = !inQuotes;
-        else if (ch === ',' && !inQuotes) {
-          out.push(current.trim());
-          current = '';
-        } else current += ch;
-      }
-      out.push(current.trim());
-      return out;
-    });
-
-  if (!rows.length) return [];
-  const headers = rows[0].map((x) => x.toLowerCase());
-  const nameIdx = headers.indexOf('name');
-  const collegeIdx = headers.indexOf('college');
-  const eventIdx = headers.indexOf('event');
-  const teamIdx = headers.indexOf('team');
-  if (nameIdx < 0 || eventIdx < 0) return [];
-
-  return rows
-    .slice(1)
-    .filter((r) => r[nameIdx] && r[eventIdx])
-    .map((r) => ({
-      name: r[nameIdx],
-      college: collegeIdx >= 0 && r[collegeIdx] ? r[collegeIdx] : DEFAULT_COLLEGE,
-      event: r[eventIdx],
-      team: teamIdx >= 0 ? r[teamIdx] || '' : '',
-    }));
-}
 
 /* Phoenix touch: embers and feathers rising from the bottom of the screen */
 function phoenixBurst() {
@@ -161,11 +110,10 @@ function loadTemplateImage(): Promise<HTMLImageElement | null> {
 }
 
 export const CertificateSection: React.FC = () => {
-  const [participants, setParticipants] = useState<Person[]>([]);
-  const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedEvent, setSelectedEvent] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [nameInput, setNameInput] = useState<string>('');
+  const [college, setCollege] = useState<string>(DEFAULT_COLLEGE);
   const [chosenPerson, setChosenPerson] = useState<Person | null>(null);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
@@ -175,40 +123,12 @@ export const CertificateSection: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const templateImgRef = useRef<HTMLImageElement | null>(null);
 
-  // Load participants from public/participants.csv
+  // Preload certificate template image
   useEffect(() => {
-    fetch('/participants.csv', { cache: 'no-store' })
-      .then((res) => {
-        if (!res.ok) throw new Error('participants.csv not found');
-        return res.text();
-      })
-      .then((txt) => {
-        setParticipants(parseCSV(txt));
-        setLoadStatus('ready');
-      })
-      .catch(() => {
-        setParticipants([]);
-        setLoadStatus('error');
-      });
-
-    // Preload certificate template image
     loadTemplateImage().then((img) => {
       templateImgRef.current = img;
     });
   }, []);
-
-  // Search only inside the selected event
-  const q = norm(searchQuery);
-  const searchMatches = useMemo(() => {
-    if (!selectedEvent || q.length < 2) return [];
-    return participants
-      .filter(
-        (p) =>
-          norm(p.event) === norm(selectedEvent) &&
-          (norm(p.name).includes(q) || norm(p.team || '').includes(q))
-      )
-      .slice(0, 12);
-  }, [participants, selectedEvent, q]);
 
   // Render certificate on canvas with precise alignment
   const renderCertificate = async (person: Person) => {
@@ -270,24 +190,29 @@ export const CertificateSection: React.FC = () => {
     setIsDrawing(false);
   };
 
-  // Re-draw when chosen person changes
+  // Re-draw whenever a new certificate is generated
   useEffect(() => {
     if (chosenPerson) {
       renderCertificate(chosenPerson);
     }
   }, [chosenPerson]);
 
-  const handleSelectParticipant = (person: Person) => {
-    setChosenPerson(person);
-    setSearchQuery(person.name);
-    setHasDownloaded(false);
+  const canGenerate = selectedEvent !== '' && nameInput.trim().length >= 2;
 
+  const handleGenerate = () => {
+    if (!canGenerate) return;
+    setChosenPerson({
+      name: nameInput.trim(),
+      college: college.trim() || DEFAULT_COLLEGE,
+      event: selectedEvent,
+    });
+    setHasDownloaded(false);
     phoenixBurst();
   };
 
   const handleReset = () => {
     setChosenPerson(null);
-    setSearchQuery('');
+    setNameInput('');
     setHasDownloaded(false);
   };
 
@@ -390,17 +315,6 @@ export const CertificateSection: React.FC = () => {
 
       {/* ── MAIN CARD (Glassmorphic) ── */}
       <div className="bg-[#0f0f13]/85 backdrop-blur-xl rounded-3xl border border-white/15 shadow-2xl p-6 sm:p-8 space-y-8">
-        {/* Participant list failed to load */}
-        {loadStatus === 'error' && (
-          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs sm:text-sm flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 shrink-0 text-red-400 mt-0.5" />
-            <div>
-              The participant list could not be loaded. Please refresh the page or contact the
-              organizers.
-            </div>
-          </div>
-        )}
-
         {/* STEP 1: CATEGORY SELECTION */}
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -441,7 +355,8 @@ export const CertificateSection: React.FC = () => {
                   onClick={() => {
                     setSelectedCategory(c);
                     setSelectedEvent('');
-                    handleReset();
+                    setChosenPerson(null);
+                    setHasDownloaded(false);
                   }}
                   className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer relative overflow-hidden group ${
                     isSelected
@@ -501,7 +416,8 @@ export const CertificateSection: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setSelectedEvent(e);
-                      handleReset();
+                      setChosenPerson(null);
+                      setHasDownloaded(false);
                     }}
                     className={`p-4 rounded-2xl border-2 text-left transition-all duration-200 flex items-center justify-between cursor-pointer ${
                       isSelected
@@ -533,7 +449,7 @@ export const CertificateSection: React.FC = () => {
           </div>
         )}
 
-        {/* STEP 3: ENTER NAME (only after an event is chosen) */}
+        {/* STEP 3: ENTER NAME → GENERATE */}
         {selectedEvent && (
           <div className="animate-in fade-in duration-300">
             <div className="mb-3">
@@ -541,92 +457,54 @@ export const CertificateSection: React.FC = () => {
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-phoenix-gold text-black text-xs font-black">
                   3
                 </span>
-                ENTER PARTICIPANT NAME
+                ENTER YOUR NAME
               </h2>
               <p className="text-xs text-white/60 ml-8">
-                Type your name to find your registration for {selectedEvent}
+                Type your name exactly as you want it printed on your {selectedEvent} certificate
               </p>
             </div>
 
-            <div className="relative">
-              <div className="relative flex items-center">
-                <Search className="w-5 h-5 absolute left-4 text-white/40 pointer-events-none" />
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={nameInput}
+                maxLength={60}
+                onChange={(e) => {
+                  setNameInput(e.target.value);
+                  setChosenPerson(null);
+                  setHasDownloaded(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleGenerate();
+                }}
+                placeholder="Your full name"
+                autoComplete="off"
+                className="w-full px-5 py-3.5 rounded-2xl border border-white/20 text-sm font-semibold text-white bg-white/[0.06] placeholder:text-white/40 focus:outline-none focus:border-phoenix-orange focus:ring-2 focus:ring-phoenix-orange/30 transition-all shadow-inner"
+              />
+
+              <label className="block text-[11px] font-semibold text-white/60">
+                College (change only if you are from another college)
                 <input
                   type="text"
-                  value={searchQuery}
+                  value={college}
+                  maxLength={80}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value);
+                    setCollege(e.target.value);
                     setChosenPerson(null);
+                    setHasDownloaded(false);
                   }}
-                  placeholder="Type your name or team name…"
-                  autoComplete="off"
-                  disabled={loadStatus !== 'ready'}
-                  className="w-full pl-12 pr-10 py-3.5 rounded-2xl border border-white/20 text-sm font-semibold text-white bg-white/[0.06] placeholder:text-white/40 focus:outline-none focus:border-phoenix-orange focus:ring-2 focus:ring-phoenix-orange/30 transition-all shadow-inner disabled:opacity-50"
+                  className="mt-1 w-full px-5 py-3 rounded-2xl border border-white/15 text-sm font-semibold text-white bg-white/[0.04] focus:outline-none focus:border-phoenix-orange transition-all"
                 />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    className="absolute right-3 p-1 rounded-full text-white/40 hover:text-white"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+              </label>
 
-              {/* Dropdown suggestions */}
-              {!chosenPerson && searchMatches.length > 0 && (
-                <div className="mt-2 p-2 bg-[#17171d] border border-white/20 rounded-2xl shadow-2xl max-h-72 overflow-y-auto space-y-1 z-30">
-                  <div className="px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase text-white/40 border-b border-white/10">
-                    Select Participant ({searchMatches.length} found)
-                  </div>
-                  {searchMatches.map((person, idx) => (
-                    <button
-                      key={`${person.name}-${person.event}-${idx}`}
-                      type="button"
-                      onClick={() => handleSelectParticipant(person)}
-                      className="w-full text-left p-3 rounded-xl hover:bg-white/10 border border-transparent hover:border-phoenix-orange/40 transition-all flex items-center justify-between group cursor-pointer"
-                    >
-                      <div>
-                        <div className="text-sm font-bold text-white group-hover:text-phoenix-orange transition-colors">
-                          {person.name}
-                        </div>
-                        <div className="text-xs text-white/60 flex items-center gap-1.5 mt-0.5">
-                          <Building className="w-3 h-3 text-white/40 shrink-0" />
-                          <span className="truncate max-w-[280px] sm:max-w-md">
-                            {person.team ? `Team ${person.team} · ` : ''}
-                            {person.college || DEFAULT_COLLEGE}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0 ml-3">
-                        <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-phoenix-orange/15 text-phoenix-orange border border-phoenix-orange/30">
-                          {person.event}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Not found alert */}
-              {!chosenPerson &&
-                loadStatus === 'ready' &&
-                q.length >= 3 &&
-                searchMatches.length === 0 && (
-                  <div className="mt-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs sm:text-sm flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
-                    <div className="space-y-1">
-                      <div className="font-bold">
-                        No record found for &quot;{searchQuery}&quot; in {selectedEvent}
-                      </div>
-                      <div className="text-white/70 text-xs">
-                        Check the spelling and the event you selected. If you still can&apos;t
-                        find your name, contact the organizers.
-                      </div>
-                    </div>
-                  </div>
-                )}
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={!canGenerate}
+                className="phoenix-gradient-btn w-full py-4 rounded-full text-white font-extrabold tracking-wider uppercase text-sm shadow-phoenix-glow disabled:opacity-40 cursor-pointer"
+              >
+                Generate My Certificate
+              </button>
             </div>
           </div>
         )}
@@ -634,7 +512,6 @@ export const CertificateSection: React.FC = () => {
         {/* STEP 4: CERTIFICATE PREVIEW & DOWNLOAD */}
         {chosenPerson && (
           <div className="animate-in fade-in duration-300 space-y-6 pt-2 border-t border-white/10">
-            {/* Header info */}
             <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
               <div className="flex items-center gap-2.5">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
@@ -653,7 +530,7 @@ export const CertificateSection: React.FC = () => {
                 onClick={handleReset}
                 className="px-3 py-1.5 rounded-full text-xs font-bold text-white/60 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
               >
-                Choose Another
+                Start Over
               </button>
             </div>
 
@@ -695,7 +572,7 @@ export const CertificateSection: React.FC = () => {
               </button>
             </div>
 
-            {/* THANK-YOU NOTE (shown after a download) */}
+            {/* THANK-YOU NOTE + SHARE (shown after a download) */}
             {hasDownloaded && (
               <div
                 role="status"
